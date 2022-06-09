@@ -14,8 +14,9 @@ class ChargedDefectsSurfaces(object):
     """
     A class to generate charged defective surface slabs for use in first
     principles supercell formalism. The standard defects such as vacancies, 
-    antisites, substitutions and interstitals are generated. The method will not work for 
-    slabs without inversion symmetry.
+    antisites, substitutions and interstitals are generated symetrically 
+    within a set distance from both surfaces of the slab. 
+    The method will not work for slabs without inversion symmetry.
     """
     def __init__(self, structure,  max_min_oxi=None, substitutions=None,
                  oxi_states=None, vacancies_flag=True, antisites_flag=True, 
@@ -53,7 +54,8 @@ class ChargedDefectsSurfaces(object):
                 is selected, charge states based on database of semiconductors
                 is used to assign defect charges. For insulators, defect
                 charges are conservatively assigned.
-            dev (float): The maximum distance in angstroms from the surface of the slab to the defect, default is 5 Å
+            dev (float): The maximum distance in angstroms from the surface of 
+                the slab to the defect, default is 5 Å
         """
         max_min_oxi = max_min_oxi if max_min_oxi is not None else {}
         substitutions = substitutions if substitutions is not None else {}
@@ -68,7 +70,7 @@ class ChargedDefectsSurfaces(object):
                             " \"{}\"".format(elem_str))
 
         if not isinstance(structure, Slab): 
-            raise TypeError('Structure must be pymatgen.core.surface.Slab') 
+            raise TypeError('Structure must be pymatgen.core.surface.Slab object') 
 
         self.defects = []
         self.substitutions = {}
@@ -78,10 +80,11 @@ class ChargedDefectsSurfaces(object):
 
         self.struct = structure
 
-        # find where the coords of zmin and zmax 
+        # find where the coords of zmin and zmax - this is the 'surface'
         self.zmax = max(self.struct.cart_coords[:,2])
         self.zmin = min(self.struct.cart_coords[:,2])
 
+        # keep this the same from defectsmaker
         if self.struct_type == 'semiconductor':
             self.defect_charger = DefectChargerSemiconductor(self.struct,
                                                              min_max_oxi=max_min_oxi, 
@@ -98,7 +101,7 @@ class ChargedDefectsSurfaces(object):
 
         self.defects = {}
         sc = self.struct.copy()
-        sc_scale = (1,1,1)
+        sc_scale = (1,1,1) # for compability
         self.defects['bulk'] = {'name': 'bulk',
                 'supercell': {'size': sc_scale, 'structure': sc}}
 
@@ -108,7 +111,7 @@ class ChargedDefectsSurfaces(object):
         ints_defs = []
 
         if vacancies_flag: 
-            print('generating vacancies')
+            print('Generating vacancies')
             vg = VacancyGenerator(self.struct)
             for i, vac in enumerate(vg): 
                 symbol = vac.site.specie.symbol
@@ -145,7 +148,7 @@ class ChargedDefectsSurfaces(object):
                             vac_defs.append(vacancy)
 
         if antisites_flag: 
-            print('generating antisites')
+            print('Generating antisites')
             for as_specie in list(self.struct.types_of_specie):
                 SG = SubstitutionGenerator(self.struct, as_specie)
                 for i, sub in enumerate(SG):
@@ -215,9 +218,13 @@ class ChargedDefectsSurfaces(object):
                         this_vac_symbol = sub_site.specie.symbol # symbol of removed site
                         sub_symbol = sub.site.specie.symbol # symbol of added site
 
+                        # checks that the sub and vac species are definitely the right ones 
                         if (sub_symbol != subspecie_symbol) or (this_vac_symbol != vac_symbol):
                             continue
                         else:
+                            # make copy of the slab supercell, identify the index of the antisite 
+                            # symmetrically remove then add the sub atom in. can't remember if the 
+                            # oxidations states do anything. 
                             sub_sc = self.struct.copy() 
                             index = self.struct.sites.index(as_site)
                             sub_sc.symmetrically_remove_atoms([index])
@@ -259,7 +266,7 @@ class ChargedDefectsSurfaces(object):
                 inter_elements = [elem.symbol for elem in \
                         self.struct.composition.elements]
             
-            print('searching for Voronoi interstitial sites, this can take a while')
+            print('Searching for Voronoi interstitial sites, this can take a while')
             # get the sites for the interstitals for an imaginary interstitial only once
             IG = VoronoiInterstitialGenerator(self.struct, 'O') 
             sites = []
@@ -267,7 +274,7 @@ class ChargedDefectsSurfaces(object):
                 # check that the interstitital site is within dev range of the surface
                 if ints.site.coords[2] - self.zmin < dev or self.zmax - ints.site.coords[2] < dev:
                     sites.append(ints)
-
+            print('Found the interstital sites, generating interstitials')
             # iterate over the inter elements to get the correct periodic sites
             inter_sites = []
             for el in inter_elements: 
